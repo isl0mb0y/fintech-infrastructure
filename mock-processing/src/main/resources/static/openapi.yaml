@@ -201,6 +201,55 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  /credit:
+    post:
+      summary: Credit a card
+      description: >
+        Transfers the amount to the card immediately: `balance` and `available`
+        both increase. There is no two-phase flow for credits; a credit cannot be
+        reversed through this API. Idempotent by `request_id` with the same rules
+        as /hold.
+      operationId: creditCreate
+      tags: [Credits]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreditRequest'
+      responses:
+        '200':
+          description: Credited (or already credited for this request_id)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Credit'
+        '400':
+          description: Malformed request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Card not found (CARD_NOT_FOUND)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: request_id already used with different parameters (REQUEST_ID_CONFLICT)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Business rejection (CARD_BLOCKED, CARD_EXPIRED)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+
 components:
   schemas:
     CardNewRequest:
@@ -335,6 +384,51 @@ components:
           type: string
           format: date-time
           description: After this moment an ACTIVE hold is reversed automatically
+
+    CreditRequest:
+      type: object
+      required: [request_id, card_token, amount]
+      properties:
+        request_id:
+          type: string
+          format: uuid
+          description: Caller-generated idempotency key, unique per credit attempt
+        card_token:
+          type: string
+          format: uuid
+        amount:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Amount in tiyin
+
+    Credit:
+      type: object
+      required: [credit_id, request_id, processing_tx_id, card_token, amount, status, created_at]
+      properties:
+        credit_id:
+          type: string
+          format: uuid
+        request_id:
+          type: string
+          format: uuid
+        processing_tx_id:
+          type: string
+          example: 'UZ-20261023-000124'
+        card_token:
+          type: string
+          format: uuid
+        amount:
+          type: integer
+          format: int64
+          description: Amount in tiyin
+        status:
+          type: string
+          enum: [COMPLETED]
+          description: Credits are always final
+        created_at:
+          type: string
+          format: date-time
 
     Error:
       type: object
