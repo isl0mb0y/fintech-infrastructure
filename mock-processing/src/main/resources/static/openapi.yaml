@@ -201,6 +201,43 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  /hold/{id}/reverse:
+    post:
+      summary: Reverse a hold
+      description: >
+        Releases the hold: `available` is restored, `balance` is unchanged.
+        Idempotent: reversing an already REVERSED or EXPIRED hold returns 200.
+        A CONFIRMED hold cannot be reversed; use /credit to return money.
+      operationId: holdReverse
+      tags: [Holds]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: hold_id returned by /hold
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Hold reversed (or was already reversed/expired)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Hold'
+        '404':
+          description: Hold not found (HOLD_NOT_FOUND)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Hold is already confirmed (HOLD_CONFIRMED)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
   /credit:
     post:
       summary: Credit a card
@@ -248,7 +285,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-
 
 components:
   schemas:
