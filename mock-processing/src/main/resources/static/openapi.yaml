@@ -34,7 +34,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
         '422':
-          description: Card is blocked or not found
+          description: Card is blocked or not found (CARD_NOT_FOUND, CARD_BLOCKED, CARD_EXPIRED, PHONE_MISMATCH)
           content:
             application/json:
               schema:
@@ -205,7 +205,7 @@ components:
   schemas:
     CardNewRequest:
       type: object
-      required: [pan, expiry]
+      required: [pan, expiry, phone]
       properties:
         pan:
           type: string
@@ -216,6 +216,11 @@ components:
           description: MM/YY
           pattern: '^(0[1-9]|1[0-2])/[0-9]{2}$'
           example: '12/28'
+        phone:
+          type: string
+          pattern: '^\+998[0-9]{9}$'
+          example: '+998991234567'
+          description: Cardholder phone; must match the phone registered for the card
 
     CardNewResponse:
       type: object
@@ -301,7 +306,7 @@ components:
 
     Hold:
       type: object
-      required: [hold_id, request_id, card_token, amount, status, created_at, expires_at]
+      required: [hold_id, request_id, processing_tx_id, card_token, amount, status, created_at, expires_at]
       properties:
         hold_id:
           type: string
@@ -309,6 +314,10 @@ components:
         request_id:
           type: string
           format: uuid
+        processing_tx_id:
+          type: string
+          example: 'UZ-20261023-000123'
+          description: Processing-side transaction id, used in the daily registry
         card_token:
           type: string
           format: uuid
