@@ -81,6 +81,37 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  /cards/{token}:
+    get:
+      summary: Get card info and balance
+      description: >
+        Returns the card bound earlier via /cards/verify. Balance and available
+        are current values computed on every call; the caller is responsible
+        for any caching.
+      operationId: cardInfo
+      tags: [Cards]
+      parameters:
+        - name: token
+          in: path
+          required: true
+          description: Card token returned by /cards/verify
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Card found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Card'
+        '404':
+          description: Card not found (CARD_NOT_FOUND)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
 components:
   schemas:
     CardNewRequest:
