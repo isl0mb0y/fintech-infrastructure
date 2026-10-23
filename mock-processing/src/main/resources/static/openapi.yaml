@@ -115,14 +115,18 @@ paths:
   /hold:
     post:
       summary: Place a hold on a card
-      description: >
+      description: |
         Reserves the amount on the card: `available` decreases, `balance` does not
-        change until the hold is confirmed. The hold expires automatically after
-        10 minutes if neither confirmed nor reversed.
+        change until the hold is confirmed.
 
-        Idempotent by `request_id`: a repeated request with the same `request_id`
-        returns the original response and does not create a second hold. The same
-        `request_id` with a different `amount` or `card_token` is rejected with 409.
+        Lifecycle:
+        - `ACTIVE` → `CONFIRMED` via `/hold/{id}/confirm` (balance is debited)
+        - `ACTIVE` → `REVERSED` via `/hold/{id}/reverse` (available is restored)
+        - `ACTIVE` → `EXPIRED` automatically after 10 minutes (available is restored)
+
+        Idempotency by `request_id`:
+        - same `request_id` again → the original response, no second hold
+        - same `request_id` with a different `amount` or `card_token` → 409
       operationId: holdCreate
       tags: [Holds]
       requestBody:
@@ -166,11 +170,13 @@ paths:
   /hold/{id}/confirm:
     post:
       summary: Confirm a hold
-      description: >
-        Finalizes the hold: `balance` decreases by the hold amount. Idempotent:
-        confirming an already CONFIRMED hold returns 200 with the same hold and
-        does not debit the card twice. An EXPIRED or REVERSED hold cannot be
-        confirmed.
+      description: |
+        Finalizes the hold: `balance` decreases by the hold amount.
+
+        By hold status:
+        - `ACTIVE` → becomes `CONFIRMED`, card is debited
+        - `CONFIRMED` → 200 with the same hold, **not debited twice** (idempotent)
+        - `EXPIRED` or `REVERSED` → 422, cannot be confirmed
       operationId: holdConfirm
       tags: [Holds]
       parameters:
@@ -204,10 +210,13 @@ paths:
   /hold/{id}/reverse:
     post:
       summary: Reverse a hold
-      description: >
+      description: |
         Releases the hold: `available` is restored, `balance` is unchanged.
-        Idempotent: reversing an already REVERSED or EXPIRED hold returns 200.
-        A CONFIRMED hold cannot be reversed; use /credit to return money.
+
+        By hold status:
+        - `ACTIVE` → becomes `REVERSED`, available is restored
+        - `REVERSED` or `EXPIRED` → 200 with the same hold, status unchanged (idempotent)
+        - `CONFIRMED` → 422, money already debited; use `/credit` to return it
       operationId: holdReverse
       tags: [Holds]
       parameters:
@@ -241,11 +250,13 @@ paths:
   /credit:
     post:
       summary: Credit a card
-      description: >
+      description: |
         Transfers the amount to the card immediately: `balance` and `available`
-        both increase. There is no two-phase flow for credits; a credit cannot be
-        reversed through this API. Idempotent by `request_id` with the same rules
-        as /hold.
+        both increase.
+
+        - single-phase: no hold, the credit is final at once
+        - cannot be reversed through this API
+        - idempotent by `request_id`, same rules as `/hold`
       operationId: creditCreate
       tags: [Credits]
       requestBody:
@@ -289,11 +300,17 @@ paths:
   /transactions/{request_id}:
     get:
       summary: Look up an operation by request_id
-      description: >
-        Status inquiry for a hold or credit. Used by the caller after a timeout to
-        learn whether the original request was processed. 404 means no operation
-        with this request_id was ever received; the caller may retry the inquiry
-        a few times before treating the originial reqest as not processed.
+      description: |
+        Status inquiry for a hold or credit. Used by the caller after a timeout
+        to learn whether the original request was processed.
+
+        How to interpret the result:
+        - `200` — the request was received and processed; check `status`
+        - `404` — no operation with this `request_id` was received. The caller
+          may retry the inquiry a few times before treating the original request
+          as not processed.
+
+        Read-only: calling it any number of times has no side effects.
       operationId: transactionInquiry
       tags: [Transactions]
       parameters:
@@ -320,11 +337,18 @@ paths:
   /registry:
     get:
       summary: Daily registry of settled operations
-      description: >
-        All operations that moved money on the given date (UTC): confirmed holds
-        as DEBIT and credits as CREDIT. Reversed, expired and still-active holds
-        are not included. The date is matched against `settled_at`, not against
-        the time the operation was created. Used for daily reconciliation.
+      description: |
+        All operations that moved money on the given date (UTC). Used for daily
+        reconciliation.
+
+        Included:
+        - confirmed holds, as `DEBIT`
+        - credits, as `CREDIT`
+
+        Not included: reversed, expired and still-active holds (no money moved).
+
+        The date is matched against `settled_at`, not against the time the
+        operation was created.
       operationId: registryGet
       tags: [Transactions]
       parameters:
@@ -353,14 +377,17 @@ paths:
   /admin/chaos:
     put:
       summary: Configure chaos mode (test only)
-      description: >
+      description: |
         Not part of the real processing API. Controls fault injection for
-        reliability testing. Order of evaluation per request: `error_rate` is
-        applied before processing (the request is rejected with 500 and has no
-        effect), then `latency_ms` delay, then the request is processed, then
-        `timeout_rate` is applied after processing (the request HAS taken effect
-        but no response is sent). Replaces the whole configuration; omitted
-        fields reset to 0.
+        reliability testing.
+
+        Order of evaluation per request:
+        1. `error_rate` — request rejected with 500, **no effect**
+        2. `latency_ms` — fixed delay
+        3. the request is processed
+        4. `timeout_rate` — the request **has taken effect**, but no response is sent
+
+        Replaces the whole configuration; omitted fields reset to 0.
       operationId: chaosConfigure
       tags: [Admin]
       requestBody:
