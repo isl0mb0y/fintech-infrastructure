@@ -350,6 +350,40 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  /admin/chaos:
+    put:
+      summary: Configure chaos mode (test only)
+      description: >
+        Not part of the real processing API. Controls fault injection for
+        reliability testing. Order of evaluation per request: `error_rate` is
+        applied before processing (the request is rejected with 500 and has no
+        effect), then `latency_ms` delay, then the request is processed, then
+        `timeout_rate` is applied after processing (the request HAS taken effect
+        but no response is sent). Replaces the whole configuration; omitted
+        fields reset to 0.
+      operationId: chaosConfigure
+      tags: [Admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChaosConfig'
+      responses:
+        '200':
+          description: Current chaos configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChaosConfig'
+        '400':
+          description: Values out of range
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+
 components:
   schemas:
     CardNewRequest:
@@ -600,6 +634,27 @@ components:
         settled_at:
           type: string
           format: date-time
+
+    ChaosConfig:
+      type: object
+      properties:
+        latency_ms:
+          type: integer
+          minimum: 0
+          default: 0
+          description: Fixed delay added to every request, in milliseconds
+        timeout_rate:
+          type: number
+          minimum: 0
+          maximum: 1
+          default: 0
+          description: Share of requests processed but left without a response
+        error_rate:
+          type: number
+          minimum: 0
+          maximum: 1
+          default: 0
+          description: Share of requests rejected with 500 before processing
 
     Error:
       type: object
