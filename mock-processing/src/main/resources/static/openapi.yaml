@@ -112,6 +112,57 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  /hold:
+    post:
+      summary: Place a hold on a card
+      description: >
+        Reserves the amount on the card: `available` decreases, `balance` does not
+        change until the hold is confirmed. The hold expires automatically after
+        10 minutes if neither confirmed nor reversed.
+
+        Idempotent by `request_id`: a repeated request with the same `request_id`
+        returns the original response and does not create a second hold. The same
+        `request_id` with a different `amount` or `card_token` is rejected with 409.
+      operationId: holdCreate
+      tags: [Holds]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HoldRequest'
+      responses:
+        '200':
+          description: Hold placed (or already existed for this request_id)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Hold'
+        '400':
+          description: Malformed request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Card not found (CARD_NOT_FOUND)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: request_id already used with different parameters (REQUEST_ID_CONFLICT)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Business rejection (INSUFFICIENT_FUNDS, CARD_BLOCKED, LIMIT_EXCEEDED)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
 components:
   schemas:
     CardNewRequest:
@@ -191,6 +242,52 @@ components:
         status:
           type: string
           enum: [ACTIVE, BLOCKED]
+
+    HoldRequest:
+      type: object
+      required: [request_id, card_token, amount]
+      properties:
+        request_id:
+          type: string
+          format: uuid
+          description: Caller-generated idempotency key, unique per hold attempt
+        card_token:
+          type: string
+          format: uuid
+        amount:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Amount in tiyin
+          example: 3000000
+
+    Hold:
+      type: object
+      required: [hold_id, request_id, card_token, amount, status, created_at, expires_at]
+      properties:
+        hold_id:
+          type: string
+          format: uuid
+        request_id:
+          type: string
+          format: uuid
+        card_token:
+          type: string
+          format: uuid
+        amount:
+          type: integer
+          format: int64
+          description: Amount in tiyin
+        status:
+          type: string
+          enum: [ACTIVE, CONFIRMED, REVERSED, EXPIRED]
+        created_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+          description: After this moment an ACTIVE hold is reversed automatically
 
     Error:
       type: object
