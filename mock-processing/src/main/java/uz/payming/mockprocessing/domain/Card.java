@@ -1,8 +1,5 @@
 package uz.payming.mockprocessing.domain;
 
-import lombok.Getter;
-import lombok.Setter;
-
 import java.time.YearMonth;
 import java.util.UUID;
 
@@ -17,20 +14,20 @@ public class Card {
     private long available; // tiyin, balance minus active holds
     private CardStatus status;
 
-    public Card(UUID token, String pan, String phone, String owner, Network network, YearMonth expiry, long balance, long available, CardStatus status) {
+    public Card(String pan, String phone, String owner, YearMonth expiry, long balance) {
         this.token = UUID.randomUUID();
         this.pan = pan;
         this.phone = phone;
         this.owner = owner;
-        this.network = network;
+        this.network = Network.fromPan(pan);
         this.expiry = expiry;
         this.balance = balance;
-        this.available = available;
-        this.status = status;
+        this.available = balance;
+        this.status = CardStatus.ACTIVE;
     }
 
     public String maskedPan() {
-        return pan.substring(0, 6) + "*******" + pan.substring(12);
+        return pan.substring(0, 6) + "******" + pan.substring(12);
     }
 
     public boolean isExpired(YearMonth now) {

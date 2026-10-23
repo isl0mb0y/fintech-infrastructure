@@ -14,8 +14,13 @@ public class Hold {
     private HoldStatus status;
     private Instant settledAt; // set when CONFIRMED, used by the registry
 
-    public Hold(UUID holdId, UUID requestId, String processingTxId, UUID cardToken, long amount, Instant createdAt, Instant expiresAt, HoldStatus status) {
-        this.holdId = holdId;
+    public Hold(UUID requestId,
+                String processingTxId,
+                UUID cardToken,
+                long amount,
+                Instant createdAt,
+                Instant expiresAt) {
+        this.holdId = UUID.randomUUID();
         this.requestId = requestId;
         this.processingTxId = processingTxId;
         this.cardToken = cardToken;
