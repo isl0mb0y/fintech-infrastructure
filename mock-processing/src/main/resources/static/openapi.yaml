@@ -286,6 +286,39 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  /transactions/{request_id}:
+    get:
+      summary: Look up an operation by request_id
+      description: >
+        Status inquiry for a hold or credit. Used by the caller after a timeout to
+        learn whether the original request was processed. 404 means no operation
+        with this request_id was ever received; the caller may retry the inquiry
+        a few times before treating the originial reqest as not processed.
+      operationId: transactionInquiry
+      tags: [Transactions]
+      parameters:
+        - name: request_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Operation found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+        '404':
+          description: No operation with this request_id (TRANSACTION_NOT_FOUNR)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+
+
 components:
   schemas:
     CardNewRequest:
@@ -462,6 +495,41 @@ components:
           type: string
           enum: [COMPLETED]
           description: Credits are always final
+        created_at:
+          type: string
+          format: date-time
+
+    Transaction:
+      type: object
+      required: [type, request_id, processing_tx_id, card_token, amount, status, created_at]
+      properties:
+        type:
+          type: string
+          enum: [HOLD, CREDIT]
+        request_id:
+          type: string
+          format: uuid
+        processing_tx_id:
+          type: string
+        hold_id:
+          type: string
+          format: uuid
+          description: Present only when type is HOLD
+        credit_id:
+          type: string
+          format: uuid
+          description: Present only when type is CREDIT
+        card_token:
+          type: string
+          format: uuid
+        amount:
+          type: integer
+          format: int64
+          description: Amount in tiyin
+        status:
+          type: string
+          enum: [ACTIVE, CONFIRMED, REVERSED, EXPIRED, COMPLETED]
+          description: Hold statuses for HOLD, COMPLETED for CREDIT
         created_at:
           type: string
           format: date-time
