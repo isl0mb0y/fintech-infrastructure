@@ -317,7 +317,38 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-
+  /registry:
+    get:
+      summary: Daily registry of settled operations
+      description: >
+        All operations that moved money on the given date (UTC): confirmed holds
+        as DEBIT and credits as CREDIT. Reversed, expired and still-active holds
+        are not included. The date is matched against `settled_at`, not against
+        the time the operation was created. Used for daily reconciliation.
+      operationId: registryGet
+      tags: [Transactions]
+      parameters:
+        - name: date
+          in: query
+          required: true
+          description: Calendar date in UTC
+          schema:
+            type: string
+            format: date
+          example: '2026-10-23'
+      responses:
+        '200':
+          description: Registry for the date (entries may be empty)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Registry'
+        '400':
+          description: Malformed date
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
 components:
   schemas:
@@ -531,6 +562,42 @@ components:
           enum: [ACTIVE, CONFIRMED, REVERSED, EXPIRED, COMPLETED]
           description: Hold statuses for HOLD, COMPLETED for CREDIT
         created_at:
+          type: string
+          format: date-time
+
+    Registry:
+      type: object
+      required: [date, entries]
+      properties:
+        date:
+          type: string
+          format: date
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/RegistryEntry'
+
+    RegistryEntry:
+      type: object
+      required: [processing_tx_id, request_id, type, card_token, amount, settled_at]
+      properties:
+        processing_tx_id:
+          type: string
+        request_id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [DEBIT, CREDIT]
+          description: DEBIT is a confirmed hold
+        card_token:
+          type: string
+          format: uuid
+        amount:
+          type: integer
+          format: int64
+          description: Amount in tiyin
+        settled_at:
           type: string
           format: date-time
 
