@@ -17,7 +17,7 @@
     <packaging>pom</packaging>
 
     <modules>
-        <module>mock-processing</module>
+        <module>card-processing</module>
     </modules>
 
     <properties>

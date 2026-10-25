@@ -1,0 +1,699 @@
+openapi: 3.0.3
+info:
+  title: Card Processing API
+  version: 0.1.0
+  description: Imitates a card processing center (Uzcard/Humo) for Payming.
+servers:
+  - url: http://localhost:8081
+paths:
+  /cards/new:
+    post:
+      summary: Start card binding
+      description: >
+        Validates the card and sends an OTP to the cardholder's phone.
+        Returns a temporary id to be used in /cards/verify.
+      operationId: cardNew
+      tags: [Cards]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CardNewRequest'
+      responses:
+        '200':
+          description: OTP sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CardNewResponse'
+        '400':
+          description: Invalid card data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Card is blocked or not found (CARD_NOT_FOUND, CARD_BLOCKED, CARD_EXPIRED, PHONE_MISMATCH)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /cards/verify:
+    post:
+      summary: Confirm card binding with OTP
+      description: >
+        Verifies the OTP sent by /cards/new. On success the card is bound and
+        a card token is returned; all further operations use this token.
+        After 3 failed attempts the temp_id is invalidated.
+      operationId: cardVerify
+      tags: [Cards]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CardVerifyRequest'
+      responses:
+        '200':
+          description: Card bound
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Card'
+        '400':
+          description: Malformed request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: temp_id not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Invalid or expired OTP (INVALID_OTP, OTP_EXPIRED, TOO_MANY_ATTEMPTS)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /cards/{token}:
+    get:
+      summary: Get card info and balance
+      description: >
+        Returns the card bound earlier via /cards/verify. Balance and available
+        are current values computed on every call; the caller is responsible
+        for any caching.
+      operationId: cardInfo
+      tags: [Cards]
+      parameters:
+        - name: token
+          in: path
+          required: true
+          description: Card token returned by /cards/verify
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Card found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Card'
+        '404':
+          description: Card not found (CARD_NOT_FOUND)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /hold:
+    post:
+      summary: Place a hold on a card
+      description: |
+        Reserves the amount on the card: `available` decreases, `balance` does not
+        change until the hold is confirmed.
+
+        Lifecycle:
+        - `ACTIVE` → `CONFIRMED` via `/hold/{id}/confirm` (balance is debited)
+        - `ACTIVE` → `REVERSED` via `/hold/{id}/reverse` (available is restored)
+        - `ACTIVE` → `EXPIRED` automatically after 10 minutes (available is restored)
+
+        Idempotency by `request_id`:
+        - same `request_id` again → the original response, no second hold
+        - same `request_id` with a different `amount` or `card_token` → 409
+      operationId: holdCreate
+      tags: [Holds]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HoldRequest'
+      responses:
+        '200':
+          description: Hold placed (or already existed for this request_id)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Hold'
+        '400':
+          description: Malformed request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Card not found (CARD_NOT_FOUND)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: request_id already used with different parameters (REQUEST_ID_CONFLICT)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Business rejection (INSUFFICIENT_FUNDS, CARD_BLOCKED, LIMIT_EXCEEDED)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /hold/{id}/confirm:
+    post:
+      summary: Confirm a hold
+      description: |
+        Finalizes the hold: `balance` decreases by the hold amount.
+
+        By hold status:
+        - `ACTIVE` → becomes `CONFIRMED`, card is debited
+        - `CONFIRMED` → 200 with the same hold, **not debited twice** (idempotent)
+        - `EXPIRED` or `REVERSED` → 422, cannot be confirmed
+      operationId: holdConfirm
+      tags: [Holds]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: hold_id returned by /hold
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Hold confirmed (or was already confirmed)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Hold'
+        '404':
+          description: Hold not found (HOLD_NOT_FOUND)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Hold is not ACTIVE (HOLD_EXPIRED, HOLD_REVERSED)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /hold/{id}/reverse:
+    post:
+      summary: Reverse a hold
+      description: |
+        Releases the hold: `available` is restored, `balance` is unchanged.
+
+        By hold status:
+        - `ACTIVE` → becomes `REVERSED`, available is restored
+        - `REVERSED` or `EXPIRED` → 200 with the same hold, status unchanged (idempotent)
+        - `CONFIRMED` → 422, money already debited; use `/credit` to return it
+      operationId: holdReverse
+      tags: [Holds]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: hold_id returned by /hold
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Hold reversed (or was already reversed/expired)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Hold'
+        '404':
+          description: Hold not found (HOLD_NOT_FOUND)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Hold is already confirmed (HOLD_CONFIRMED)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /credit:
+    post:
+      summary: Credit a card
+      description: |
+        Transfers the amount to the card immediately: `balance` and `available`
+        both increase.
+
+        - single-phase: no hold, the credit is final at once
+        - cannot be reversed through this API
+        - idempotent by `request_id`, same rules as `/hold`
+      operationId: creditCreate
+      tags: [Credits]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreditRequest'
+      responses:
+        '200':
+          description: Credited (or already credited for this request_id)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Credit'
+        '400':
+          description: Malformed request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Card not found (CARD_NOT_FOUND)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: request_id already used with different parameters (REQUEST_ID_CONFLICT)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Business rejection (CARD_BLOCKED, CARD_EXPIRED)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /transactions/{request_id}:
+    get:
+      summary: Look up an operation by request_id
+      description: |
+        Status inquiry for a hold or credit. Used by the caller after a timeout
+        to learn whether the original request was processed.
+
+        How to interpret the result:
+        - `200` — the request was received and processed; check `status`
+        - `404` — no operation with this `request_id` was received. The caller
+          may retry the inquiry a few times before treating the original request
+          as not processed.
+
+        Read-only: calling it any number of times has no side effects.
+      operationId: transactionInquiry
+      tags: [Transactions]
+      parameters:
+        - name: request_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Operation found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+        '404':
+          description: No operation with this request_id (TRANSACTION_NOT_FOUNR)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /registry:
+    get:
+      summary: Daily registry of settled operations
+      description: |
+        All operations that moved money on the given date (UTC). Used for daily
+        reconciliation.
+
+        Included:
+        - confirmed holds, as `DEBIT`
+        - credits, as `CREDIT`
+
+        Not included: reversed, expired and still-active holds (no money moved).
+
+        The date is matched against `settled_at`, not against the time the
+        operation was created.
+      operationId: registryGet
+      tags: [Transactions]
+      parameters:
+        - name: date
+          in: query
+          required: true
+          description: Calendar date in UTC
+          schema:
+            type: string
+            format: date
+          example: '2026-10-23'
+      responses:
+        '200':
+          description: Registry for the date (entries may be empty)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Registry'
+        '400':
+          description: Malformed date
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /admin/chaos:
+    put:
+      summary: Configure chaos mode (test only)
+      description: |
+        Not part of the real processing API. Controls fault injection for
+        reliability testing.
+
+        Order of evaluation per request:
+        1. `error_rate` — request rejected with 500, **no effect**
+        2. `latency_ms` — fixed delay
+        3. the request is processed
+        4. `timeout_rate` — the request **has taken effect**, but no response is sent
+
+        Replaces the whole configuration; omitted fields reset to 0.
+      operationId: chaosConfigure
+      tags: [Admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChaosConfig'
+      responses:
+        '200':
+          description: Current chaos configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChaosConfig'
+        '400':
+          description: Values out of range
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+
+components:
+  schemas:
+    CardNewRequest:
+      type: object
+      required: [pan, expiry, phone]
+      properties:
+        pan:
+          type: string
+          pattern: '^[0-9]{16}$'
+          example: '8600123412341234'
+        expiry:
+          type: string
+          description: MM/YY
+          pattern: '^(0[1-9]|1[0-2])/[0-9]{2}$'
+          example: '12/28'
+        phone:
+          type: string
+          pattern: '^\+998[0-9]{9}$'
+          example: '+998991234567'
+          description: Cardholder phone; must match the phone registered for the card
+
+    CardNewResponse:
+      type: object
+      required: [temp_id, phone_mask, otp_expires_at]
+      properties:
+        temp_id:
+          type: string
+          format: uuid
+        phone_mask:
+          type: string
+          description: Masked phone the OTP was sent to
+          example: '+99890***1234'
+        otp_expires_at:
+          type: string
+          format: date-time
+
+    CardVerifyRequest:
+      type: object
+      required: [temp_id, otp]
+      properties:
+        temp_id:
+          type: string
+          format: uuid
+        otp:
+          type: string
+          pattern: '^[0-9]{6}$'
+          example: '123456'
+
+    Card:
+      type: object
+      required: [token, masked_pan, owner, network, expiry, balance, available, status]
+      properties:
+        token:
+          type: string
+          format: uuid
+          description: Card token. The caller stores this instead of the PAN.
+        masked_pan:
+          type: string
+          description: First 6 and last 4 digits of PAN
+          example: '860012******1234'
+        owner:
+          type: string
+          description: Cardholder name as printed on the card
+          example: 'A. ALIYEV'
+        network:
+          type: string
+          enum: [UZCARD, HUMO]
+        expiry:
+          type: string
+          description: MM/YY
+          example: '12/28'
+        balance:
+          type: integer
+          format: int64
+          description: Total balance in tiyin (1 UZS = 100 tiyin)
+          example: 150000000
+        available:
+          type: integer
+          format: int64
+          description: Balance minus active holds, in tiyin
+          example: 149500000
+        status:
+          type: string
+          enum: [ACTIVE, BLOCKED]
+
+    HoldRequest:
+      type: object
+      required: [request_id, card_token, amount]
+      properties:
+        request_id:
+          type: string
+          format: uuid
+          description: Caller-generated idempotency key, unique per hold attempt
+        card_token:
+          type: string
+          format: uuid
+        amount:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Amount in tiyin
+          example: 3000000
+
+    Hold:
+      type: object
+      required: [hold_id, request_id, processing_tx_id, card_token, amount, status, created_at, expires_at]
+      properties:
+        hold_id:
+          type: string
+          format: uuid
+        request_id:
+          type: string
+          format: uuid
+        processing_tx_id:
+          type: string
+          example: 'UZ-20261023-000123'
+          description: Processing-side transaction id, used in the daily registry
+        card_token:
+          type: string
+          format: uuid
+        amount:
+          type: integer
+          format: int64
+          description: Amount in tiyin
+        status:
+          type: string
+          enum: [ACTIVE, CONFIRMED, REVERSED, EXPIRED]
+        created_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+          description: After this moment an ACTIVE hold is reversed automatically
+
+    CreditRequest:
+      type: object
+      required: [request_id, card_token, amount]
+      properties:
+        request_id:
+          type: string
+          format: uuid
+          description: Caller-generated idempotency key, unique per credit attempt
+        card_token:
+          type: string
+          format: uuid
+        amount:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Amount in tiyin
+
+    Credit:
+      type: object
+      required: [credit_id, request_id, processing_tx_id, card_token, amount, status, created_at]
+      properties:
+        credit_id:
+          type: string
+          format: uuid
+        request_id:
+          type: string
+          format: uuid
+        processing_tx_id:
+          type: string
+          example: 'UZ-20261023-000124'
+        card_token:
+          type: string
+          format: uuid
+        amount:
+          type: integer
+          format: int64
+          description: Amount in tiyin
+        status:
+          type: string
+          enum: [COMPLETED]
+          description: Credits are always final
+        created_at:
+          type: string
+          format: date-time
+
+    Transaction:
+      type: object
+      required: [type, request_id, processing_tx_id, card_token, amount, status, created_at]
+      properties:
+        type:
+          type: string
+          enum: [HOLD, CREDIT]
+        request_id:
+          type: string
+          format: uuid
+        processing_tx_id:
+          type: string
+        hold_id:
+          type: string
+          format: uuid
+          description: Present only when type is HOLD
+        credit_id:
+          type: string
+          format: uuid
+          description: Present only when type is CREDIT
+        card_token:
+          type: string
+          format: uuid
+        amount:
+          type: integer
+          format: int64
+          description: Amount in tiyin
+        status:
+          type: string
+          enum: [ACTIVE, CONFIRMED, REVERSED, EXPIRED, COMPLETED]
+          description: Hold statuses for HOLD, COMPLETED for CREDIT
+        created_at:
+          type: string
+          format: date-time
+
+    Registry:
+      type: object
+      required: [date, entries]
+      properties:
+        date:
+          type: string
+          format: date
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/RegistryEntry'
+
+    RegistryEntry:
+      type: object
+      required: [processing_tx_id, request_id, type, card_token, amount, settled_at]
+      properties:
+        processing_tx_id:
+          type: string
+        request_id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [DEBIT, CREDIT]
+          description: DEBIT is a confirmed hold
+        card_token:
+          type: string
+          format: uuid
+        amount:
+          type: integer
+          format: int64
+          description: Amount in tiyin
+        settled_at:
+          type: string
+          format: date-time
+
+    ChaosConfig:
+      type: object
+      properties:
+        latency_ms:
+          type: integer
+          minimum: 0
+          default: 0
+          description: Fixed delay added to every request, in milliseconds
+        timeout_rate:
+          type: number
+          minimum: 0
+          maximum: 1
+          default: 0
+          description: Share of requests processed but left without a response
+        error_rate:
+          type: number
+          minimum: 0
+          maximum: 1
+          default: 0
+          description: Share of requests rejected with 500 before processing
+
+    Error:
+      type: object
+      required: [code, message, retryable]
+      properties:
+        code:
+          type: string
+          description: Machine-readable error code
+          example: CARD_BLOCKED
+        message:
+          type: string
+          example: Card is blocked by issuer
+        retryable:
+          type: boolean
+          description: Whether the caller may retry the same request

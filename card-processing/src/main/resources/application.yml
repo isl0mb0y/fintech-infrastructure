@@ -1,0 +1,11 @@
+server:
+  port: 8081
+spring:
+  application:
+    name: card-processing
+  datasource:
+    url: 
+
+springdoc:
+  swagger-ui:
+    url: /openapi.yaml

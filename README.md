@@ -8,14 +8,14 @@ double-entry ledger. A wallet is planned as a later phase on top of the same
 ledger.
 
 Real Uzcard/Humo APIs are not accessible without a contract, so the project
-ships its own `mock-processing` service that imitates both networks,
+ships its own `card-processing` service that imitates both networks,
 including a chaos mode (latency, timeouts, errors) for reliability testing.
 
 ## Modules
 
 | Module            | Port | Description                                            |
 |-------------------|------|--------------------------------------------------------|
-| `mock-processing` | 8081 | Fake Uzcard/Humo processing center: cards, holds, OTP  |
+| `card-processing` | 8081 | Fake Uzcard/Humo processing center: cards, holds, OTP  |
 | `payming-core`    | 8080 | Main payment system (coming in phase 1)                |
 
 Modules talk to each other over HTTP only and never depend on each other's code.
@@ -29,7 +29,7 @@ Kafka, Redis, ClickHouse, gRPC and Kubernetes are added in later phases.
 
 ```bash
 docker compose up -d        # PostgreSQL
-./mvnw -pl mock-processing spring-boot:run
+./mvnw -pl card-processing spring-boot:run
 ```
 
 Swagger UI: http://localhost:8081/swagger-ui.html

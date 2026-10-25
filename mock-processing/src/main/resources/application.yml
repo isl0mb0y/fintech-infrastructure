@@ -1,9 +1,0 @@
-server:
-  port: 8081
-spring:
-  application:
-    name: mock-processing
-
-springdoc:
-  swagger-ui:
-    url: /openapi.yaml
