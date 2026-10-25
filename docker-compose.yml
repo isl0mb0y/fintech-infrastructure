@@ -1,9 +1,13 @@
 services:
-  postgres:
+  card-processing-db:
     image: postgres:16
     environment:
-      POSTGRES_DB: payming
-      POSTGRES_USER: payming
-      POSTGRES_PASSWORD: payming
+      POSTGRES_USER: card_processing
+      POSTGRES_PASSWORD: card_processing
+      POSTGRES_DB: card_processing
     ports:
-      - "5434:5432"
+      - "5433:5432"
+    volumes:
+      - card-processing-data:/var/lib/postgresql/data
+volumes:
+  card-processing-data:
