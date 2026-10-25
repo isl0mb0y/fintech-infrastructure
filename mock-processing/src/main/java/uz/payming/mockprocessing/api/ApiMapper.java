@@ -1,17 +1,19 @@
 package uz.payming.mockprocessing.api;
 
 
-import uz.payming.mockprocessing.api.generated.model.CardDto;
-import uz.payming.mockprocessing.api.generated.model.CreditDto;
-import uz.payming.mockprocessing.api.generated.model.HoldDto;
+import uz.payming.mockprocessing.api.generated.model.*;
 import uz.payming.mockprocessing.domain.Card;
 import uz.payming.mockprocessing.domain.Credit;
 import uz.payming.mockprocessing.domain.Hold;
+import uz.payming.mockprocessing.service.RegistryEntry;
+import uz.payming.mockprocessing.service.Transaction;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 
 /** Converts domain objects to generated API models. */
 final class ApiMapper {
@@ -58,5 +60,32 @@ final class ApiMapper {
                 .status(CreditDto.StatusEnum.COMPLETED)
                 .createdAt(at(c.createdAt()));
     }
+
+    static TransactionDto toDto(Transaction t) {
+        return new TransactionDto()
+                .type(TransactionDto.TypeEnum.valueOf(t.type().name()))
+                .requestId(t.requestId())
+                .processingTxId(t.processingTxId())
+                .holdId(t.holdId())
+                .creditId(t.creditId())
+                .cardToken(t.cardToken())
+                .amount(t.amount())
+                .status(TransactionDto.StatusEnum.valueOf(t.status()))
+                .createdAt(at(t.createdAt()));
+    }
+
+    static RegistryDto toDto(LocalDate date, List<RegistryEntry> entries) {
+        return new RegistryDto()
+                .date(date)
+                .entries(entries.stream().map(e -> new RegistryEntryDto()
+                        .processingTxId(e.processingTxId())
+                        .requestId(e.requestId())
+                        .type(RegistryEntryDto.TypeEnum.valueOf(e.type().name()))
+                        .cardToken(e.cardToken())
+                        .amount(e.amount())
+                        .settledAt(at(e.settledAt()))
+                ).toList());
+    }
+
 
 }
