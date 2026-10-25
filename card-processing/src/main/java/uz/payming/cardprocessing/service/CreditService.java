@@ -30,7 +30,7 @@ public class CreditService {
     public Credit create(UUID requestId, UUID cardToken, long amount) {
         Credit existing = operations.findCreditByRequestId(requestId).orElse(null);
         if (existing != null) {
-            if (existing.cardToken().equals(cardToken) && existing.amount() == amount) {
+            if (existing.getCardToken().equals(cardToken) && existing.getAmount() == amount) {
                 return existing;
             }
 
@@ -50,7 +50,7 @@ public class CreditService {
                 throw new ProcessingException(ErrorCode.CARD_EXPIRED, "Card is expired");
             }
 
-            Credit credit = Credit.create(requestId, txIds.next(), cardToken, amount, clock.instant());
+            Credit credit = new Credit(requestId, txIds.next(), cardToken, amount, clock.instant());
             card.setBalance(card.getBalance() + amount);
             card.setAvailable(card.getAvailable() + amount);
             operations.save(credit);

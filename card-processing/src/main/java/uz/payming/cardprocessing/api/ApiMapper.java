@@ -52,13 +52,13 @@ final class ApiMapper {
 
     static CreditDto toDto(Credit c) {
         return new CreditDto()
-                .creditId(c.creditId())
-                .requestId(c.requestId())
-                .processingTxId(c.processingTxId())
-                .cardToken(c.cardToken())
-                .amount(c.amount())
+                .creditId(c.getCreditId())
+                .requestId(c.getRequestId())
+                .processingTxId(c.getProcessingTxId())
+                .cardToken(c.getCardToken())
+                .amount(c.getAmount())
                 .status(CreditDto.StatusEnum.COMPLETED)
-                .createdAt(at(c.createdAt()));
+                .createdAt(at(c.getCreatedAt()));
     }
 
     static TransactionDto toDto(Transaction t) {

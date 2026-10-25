@@ -37,14 +37,14 @@ public record Transaction(
     public static Transaction of(Credit c) {
         return new Transaction(
                 Type.CREDIT,
-                c.requestId(),
-                c.processingTxId(),
+                c.getRequestId(),
+                c.getProcessingTxId(),
                 null,
-                c.creditId(),
-                c.cardToken(),
-                c.amount(),
+                c.getCreditId(),
+                c.getCardToken(),
+                c.getAmount(),
                 "COMPLETED",
-                c.createdAt()
+                c.getCreatedAt()
         );
     }
 }

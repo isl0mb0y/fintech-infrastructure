@@ -47,7 +47,7 @@ public class TransactionService {
                 .map(RegistryEntry::debit);
 
         Stream<RegistryEntry> credits = operations.allCredits().stream()
-                .filter(c -> within(c.createdAt(), from, to))
+                .filter(c -> within(c.getCreatedAt(), from, to))
                 .map(RegistryEntry::credit);
 
         return Stream.concat(debits, credits)

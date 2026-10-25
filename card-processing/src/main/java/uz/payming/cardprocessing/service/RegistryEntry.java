@@ -31,12 +31,12 @@ public record RegistryEntry(
 
     public static RegistryEntry credit(Credit c) {
         return new RegistryEntry(
-                c.processingTxId(),
-                c.requestId(),
+                c.getProcessingTxId(),
+                c.getRequestId(),
                 Type.CREDIT,
-                c.cardToken(),
-                c.amount(),
-                c.createdAt()
+                c.getCardToken(),
+                c.getAmount(),
+                c.getCreatedAt()
         );
     }
 }
