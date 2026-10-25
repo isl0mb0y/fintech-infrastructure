@@ -2,7 +2,11 @@ package uz.payming.mockprocessing.api;
 
 
 import uz.payming.mockprocessing.api.generated.model.CardDto;
+import uz.payming.mockprocessing.api.generated.model.CreditDto;
+import uz.payming.mockprocessing.api.generated.model.HoldDto;
 import uz.payming.mockprocessing.domain.Card;
+import uz.payming.mockprocessing.domain.Credit;
+import uz.payming.mockprocessing.domain.Hold;
 
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -30,6 +34,29 @@ final class ApiMapper {
 
     static OffsetDateTime at(Instant i) {
         return i.atOffset(ZoneOffset.UTC);
+    }
+
+    static HoldDto toDto(Hold h) {
+        return new HoldDto()
+                .holdId(h.getHoldId())
+                .requestId(h.getRequestId())
+                .processingTxId(h.getProcessingTxId())
+                .cardToken(h.getCardToken())
+                .amount(h.getAmount())
+                .status(HoldDto.StatusEnum.valueOf(h.getStatus().name()))
+                .createdAt(at(h.getCreatedAt()))
+                .expiresAt(at(h.getExpiresAt()));
+    }
+
+    static CreditDto toDto(Credit c) {
+        return new CreditDto()
+                .creditId(c.creditId())
+                .requestId(c.requestId())
+                .processingTxId(c.processingTxId())
+                .cardToken(c.cardToken())
+                .amount(c.amount())
+                .status(CreditDto.StatusEnum.COMPLETED)
+                .createdAt(at(c.createdAt()));
     }
 
 }
