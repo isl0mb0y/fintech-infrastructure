@@ -1,0 +1,21 @@
+server:
+  port: 8082
+spring:
+  application:
+    name: core-banking
+  datasource:
+    url: jdbc:postgresql://localhost:5434/core_banking
+    username: core_banking
+    password: core_banking
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate.jdbc.time_zone: UTC
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.yaml
+
+springdoc:
+  swagger-ui:
+    url: /openapi.yaml

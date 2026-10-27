@@ -7,7 +7,6 @@ spring:
     url: jdbc:postgresql://localhost:5433/card_processing
     username: card_processing
     password: card_processing
-
   jpa:
     hibernate:
       ddl-auto: validate

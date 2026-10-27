@@ -1,0 +1,8 @@
+openapi: 3.0.3
+info:
+  title: Core Banking API
+  version: 0.1.0
+  description: Core banking system of the fintech infrastructure.
+servers:
+  - url: http://localhost:8082
+paths: {}
