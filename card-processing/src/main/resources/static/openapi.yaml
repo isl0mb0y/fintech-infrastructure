@@ -2,7 +2,7 @@ openapi: 3.0.3
 info:
   title: Card Processing API
   version: 0.1.0
-  description: Imitates a card processing center (Uzcard/Humo) for Payming.
+  description: Card processing center (Uzcard/Humo role) of the fintech infrastructure.
 servers:
   - url: http://localhost:8081
 paths:

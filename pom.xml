@@ -11,8 +11,8 @@
         <relativePath/>
     </parent>
 
-    <groupId>uz.payming</groupId>
-    <artifactId>payming-parent</artifactId>
+    <groupId>uz.fintech</groupId>
+    <artifactId>fintech-infrastructure-parent</artifactId>
     <version>1.0-SNAPSHOT</version>
     <packaging>pom</packaging>
 
