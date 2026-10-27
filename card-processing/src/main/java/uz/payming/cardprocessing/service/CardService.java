@@ -1,9 +1,10 @@
 package uz.payming.cardprocessing.service;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import uz.payming.cardprocessing.domain.Card;
 import uz.payming.cardprocessing.domain.CardStatus;
-import uz.payming.cardprocessing.store.CardStore;
+import uz.payming.cardprocessing.repository.CardRepository;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -19,17 +20,18 @@ public class CardService {
     private static final int MAX_OTP_ATTEMPTS = 3;
     static final String FIXED_OTP = "123456";
 
-    private final CardStore cards;
+    private final CardRepository cardRepository;
     private final Clock clock;
     private final Map<UUID, PendingBinding> pending = new ConcurrentHashMap<>();
 
-    public CardService(CardStore cards, Clock clock) {
-        this.cards = cards;
+    public CardService(CardRepository cardRepository, Clock clock) {
+        this.cardRepository = cardRepository;
         this.clock = clock;
     }
 
+    @Transactional(readOnly = true)
     public PendingBinding startBinding(String pan, YearMonth expiry, String phone) {
-        Card card = cards.findByPan(pan)
+        Card card = cardRepository.findByPan(pan)
                 .orElseThrow(() -> new ProcessingException(ErrorCode.CARD_NOT_FOUND, "Card not found"));
 
         if (!card.getExpiry().equals(expiry)) {
@@ -55,6 +57,7 @@ public class CardService {
     }
 
     /** cards/verify: check the OTP, returns the bound card. */
+    @Transactional(readOnly = true)
     public Card verify(UUID tempId, String otp) {
         PendingBinding binding = pending.get(tempId);
         if (binding == null) {
@@ -75,13 +78,14 @@ public class CardService {
             throw new ProcessingException(ErrorCode.INVALID_OTP, "Invalid OTP");
         }
         pending.remove(tempId);
-        return cards.findByToken(binding.cardToken())
+        return cardRepository.findById(binding.cardToken())
                 .orElseThrow(() -> new ProcessingException(ErrorCode.CARD_NOT_FOUND, "Card not found"));
     }
 
     /** cards/{token} */
+    @Transactional(readOnly = true)
     public Card info(UUID token) {
-        return cards.findByToken(token)
+        return cardRepository.findById(token)
                 .orElseThrow(() -> new ProcessingException(ErrorCode.CARD_NOT_FOUND, "Card not found"));
     }
 
