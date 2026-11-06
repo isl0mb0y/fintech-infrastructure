@@ -7,6 +7,7 @@ import uz.fintech.cardprocessing.domain.Credit;
 import uz.fintech.cardprocessing.domain.Hold;
 import uz.fintech.cardprocessing.service.RegistryEntry;
 import uz.fintech.cardprocessing.service.Transaction;
+import uz.payming.cardprocessing.api.generated.model.CardDto;
 
 import java.time.Instant;
 import java.time.LocalDate;
